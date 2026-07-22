@@ -62,6 +62,13 @@ class Dataset {
         }
         return null;
     }
+    async metadata(datasetUrl) {
+        const response = await fetch(this.url + '/metadata?url=' + encodeURIComponent(datasetUrl), { headers: this._head_auth });
+        if (response.ok) {
+            return response.json();
+        }
+        return null;
+    }
 }
 // AMD export for classic notebook
 if (typeof define === 'function') {

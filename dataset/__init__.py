@@ -71,6 +71,26 @@ class DataladAPI:
         )
         return json.loads(response.body)
 
+    async def url_metadata(self, dataset_url):
+        """
+        Fetch metadata for a specific dataset URL from the registry.
+
+        :param dataset_url: The dataset URL to look up
+        :return: Registry API response as dict
+        """
+        params = {"url": dataset_url}
+        url = (
+            self.registry_url
+            + "/api/v2/url-metadata"
+            + "?"
+            + urlencode(params)
+        )
+
+        response = await self._http_client.fetch(
+            url, request_timeout=10.0, raise_error=True
+        )
+        return json.loads(response.body)
+
     async def list_cloned(self):
         """
         List datasets that have been cloned locally.
@@ -83,7 +103,7 @@ class DataladAPI:
 
         entries = sorted(
             e for e in datasets_dir.iterdir()
-            if e.is_dir() and (e / ".datalad").is_dir()
+            if e.is_dir() and ((e / ".datalad").is_dir() or (e / ".git").exists())
         )
         if not entries:
             return []

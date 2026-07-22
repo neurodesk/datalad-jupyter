@@ -86,8 +86,21 @@ class DatasetShowHandler(JupyterHandler):
         self.finish(json.dumps(info))
 
 
+class DatasetMetadataHandler(JupyterHandler):
+    """Fetch metadata for a dataset URL from the registry."""
+
+    @web.authenticated
+    async def get(self):
+        url = self.get_query_argument("url")
+        if not url:
+            raise web.HTTPError(400, "url query parameter required")
+        result = await DATALAD.url_metadata(url)
+        self.finish(json.dumps(result))
+
+
 default_handlers = [
     (r"/dataset/search", DatasetSearchHandler),
+    (r"/dataset/metadata", DatasetMetadataHandler),
     (r"/dataset/clone/([^/]+)", DatasetCloneStatusHandler),
     (r"/dataset/clone", DatasetCloneHandler),
     (r"/dataset/config", DatasetConfigHandler),
