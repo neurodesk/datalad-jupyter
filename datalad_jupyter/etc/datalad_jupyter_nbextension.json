@@ -1,0 +1,5 @@
+{
+  "load_extensions": {
+    "datalad_jupyter/main": true
+  }
+}

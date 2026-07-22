@@ -1,0 +1,101 @@
+[build-system]
+requires = [
+    "hatch-jupyter-builder >=0.5",
+    "hatch-nodejs-version",
+    "hatchling >=1.4.0",
+    "jupyterlab >=4.0.0",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "datalad-jupyter"
+dynamic = [
+    "authors",
+    "description",
+    "keywords",
+    "urls",
+    "version",
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+classifiers = [
+    "Framework :: Jupyter",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "jupyter-core",
+    "jupyter-server",
+]
+
+[tool.hatch.metadata.hooks.nodejs]
+path = "package.json"
+fields = ["description", "authors", "urls"]
+
+[tool.hatch.build]
+artifacts = [
+    "datalad_jupyter/labextension",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["datalad_jupyter", "dataset"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"datalad_jupyter/static" = "share/jupyter/nbextensions/datalad_jupyter"
+"datalad_jupyter/etc/datalad_jupyter_serverextension.json" = "etc/jupyter/jupyter_notebook_config.d/datalad_jupyter_serverextension.json"
+"datalad_jupyter/etc/datalad_jupyter_jupyterserverextension.json" = "etc/jupyter/jupyter_server_config.d/datalad_jupyter_jupyterserverextension.json"
+"datalad_jupyter/etc/datalad_jupyter_nbextension.json" = "etc/jupyter/nbconfig/tree.d/datalad_jupyter_nbextension.json"
+"datalad_jupyter/labextension" = "share/jupyter/labextensions/datalad-jupyter"
+"install.json" = "share/jupyter/labextensions/datalad-jupyter/install.json"
+
+[tool.hatch.version]
+source = "nodejs"
+path = "package.json"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".github",
+    ".yarn",
+]
+
+[tool.hatch.build.hooks.jupyter-builder]
+ensured-targets = [
+    "datalad_jupyter/labextension/package.json",
+]
+dependencies = [
+    "hatch-jupyter-builder>=0.8.2",
+]
+build-function = "hatch_jupyter_builder.npm_builder"
+
+[tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+path = "."
+build_cmd = "build:prod"
+editable_build_cmd = "build"
+npm = [
+    "jlpm",
+]
+
+[tool.tbump]
+field = [
+    { name = "channel", default = "" },
+    { name = "release", default = "" },
+]
+
+[tool.tbump.version]
+current = "6.0.0"
+regex = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)((?P<channel>a|b|rc|.dev)(?P<release>\\d+))?"
+
+[tool.tbump.git]
+message_template = "Bump to {new_version}"
+tag_template = "v{new_version}"
+
+[[tool.tbump.file]]
+src = "pyproject.toml"
+version_template = "version = \"{major}.{minor}.{patch}{channel}{release}\""
