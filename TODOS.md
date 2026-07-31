@@ -1,17 +1,22 @@
 # TODOS
 
-## Full UI redesign for dataset browsing
-Replace the ModuleWidget (load/unload modules) with a DatasetWidget (search/browse/clone datasets) with proper pagination, search debouncing, and clone progress indicators. The current module-oriented UI doesn't map well to dataset browsing (23K items vs ~200, async clone vs instant load). Backend-only v1 reuses existing widget structure — this covers the proper UI that takes advantage of server-side search and async clone status.
-**Depends on:** Backend implementation being stable first.
+## DONE
 
-## Dataset removal with safety checks
-Add a 'remove' operation for cloned datasets with confirmation dialog and size display. Users will need to clean up datasets without using the terminal. Deferred from v1 to avoid building destructive operations before the core browse/clone flow is validated.
-**Depends on:** Backend v1 + UI redesign.
+- DatasetWidget with search debouncing, infinite scroll pagination, clone progress polling
+- Backend search proxy, async clone, clone status polling, dataset listing
+- Registry metadata display with metalad_core format detection
+- Renamed package from jupyterlmod to datalad_jupyter
+- Path traversal security fix (`_safe_dataset_path` guard on all path-taking handlers)
+- Backend pytest suite (24 tests covering DataladAPI, path validation, clone lifecycle)
+- Subdirectory browsing (`GET /dataset/tree/<name>/<path>`) + `datalad get` (`POST /dataset/get`)
+- Frontend tree-view in cloned dataset Info dialog with lazy directory expansion and inline `datalad get`
 
-## Full test suite with mocking
-Comprehensive pytest suite with mocked HTTP (registry API) and mocked subprocess (datalad CLI) covering happy paths and error cases. The backend proxies HTTP and runs shell commands — both are failure-prone. User chose smoke tests only for v1.
-**Depends on:** Backend API being stable.
+## Dataset removal with safety checks — DEFERRED
+Users can delete from terminal. Focus on browse/get and tests first.
 
 ## datalad-metalad metadata integration
 Integrate datalad-metalad extractors to show rich dataset metadata (BIDS, provenance, etc.) beyond what the registry API provides. The registry only stores basic metadata (URL, size, annex key count). The brainlife fork of datalad-metalad was mentioned as a reference. This would run extractors on cloned datasets to surface richer metadata in the UI.
-**Depends on:** Backend v1 + clone functionality working.
+**Depends on:** Browse/get working first.
+
+## Benchmarking
+Benchmark search and query to API endpoint at `https://registry.datalad.org/api/v2/dataset-urls` to review the improvement in the endpoint.

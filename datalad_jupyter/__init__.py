@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .config import Datalad as DataladConfig
 from .handler import default_handlers
-from dataset import DataladAPI, DATALAD_CMD
+from dataset import DataladAPI, _find_datalad
 
 import datalad_jupyter.handler as handler_module
 
@@ -60,8 +60,8 @@ def _load_jupyter_server_extension(nbapp):
         datasets_path=datalad_config.datasets_path,
     )
 
-    if DATALAD_CMD:
-        log.info(f"DataLad CLI found: {DATALAD_CMD}")
+    if _find_datalad():
+        log.info(f"DataLad CLI found: {_find_datalad()}")
     else:
         log.warning(
             "DataLad CLI not found. Clone operations will not work. "

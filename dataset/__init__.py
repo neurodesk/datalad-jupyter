@@ -17,8 +17,16 @@ DEFAULT_REGISTRY_URL = "https://registry.datalad.org"
 REGISTRY_API_PREFIX = "/api/v2/dataset-urls"
 DEFAULT_DATASETS_PATH = os.path.join(Path.home(), "datasets")
 
-# Detect datalad CLI at import time
+# Detect datalad CLI at import time (fallback; re-checked on each call)
 DATALAD_CMD = shutil.which("datalad")
+
+
+def _find_datalad():
+    """Return path to datalad CLI, re-checking PATH if not found at import time."""
+    global DATALAD_CMD
+    if DATALAD_CMD is None:
+        DATALAD_CMD = shutil.which("datalad")
+    return DATALAD_CMD
 
 
 class CloneStatus:
@@ -44,7 +52,7 @@ class DataladAPI:
 
     @property
     def datalad_available(self):
-        return DATALAD_CMD is not None
+        return _find_datalad() is not None
 
     async def search(self, query=None, page=1, per_page=20):
         """
@@ -71,19 +79,18 @@ class DataladAPI:
         )
         return json.loads(response.body)
 
-    async def url_metadata(self, dataset_url):
+    async def dataset_detail(self, dataset_id):
         """
-        Fetch metadata for a specific dataset URL from the registry.
+        Fetch detail and metadata for a dataset by its registry ID.
 
-        :param dataset_url: The dataset URL to look up
+        :param dataset_id: Numeric dataset URL ID from the registry
         :return: Registry API response as dict
         """
-        params = {"url": dataset_url}
         url = (
             self.registry_url
-            + "/api/v2/url-metadata"
-            + "?"
-            + urlencode(params)
+            + REGISTRY_API_PREFIX
+            + "/"
+            + str(dataset_id)
         )
 
         response = await self._http_client.fetch(
@@ -170,7 +177,7 @@ class DataladAPI:
             os.makedirs(os.path.dirname(dest), exist_ok=True)
 
             proc = await create_subprocess_exec(
-                DATALAD_CMD, "clone", url, dest,
+                _find_datalad(), "clone", url, dest,
                 stdout=PIPE, stderr=PIPE,
             )
             try:
@@ -184,11 +191,21 @@ class DataladAPI:
                 self._clones[clone_id]["error"] = "Clone timed out after 10 minutes"
                 return
 
+            stderr_text = stderr.decode().strip()
+            stdout_text = stdout.decode().strip()
             if proc.returncode == 0:
                 self._clones[clone_id]["status"] = CloneStatus.COMPLETED
+                if stderr_text:
+                    self._clones[clone_id]["log"] = stderr_text
             else:
                 self._clones[clone_id]["status"] = CloneStatus.FAILED
-                self._clones[clone_id]["error"] = stderr.decode().strip()
+                # datalad writes install(error) results to stdout
+                combined = "\n".join(filter(None, [stdout_text, stderr_text]))
+                self._clones[clone_id]["error"] = (
+                    f"datalad clone exited with code {proc.returncode}:\n{combined}"
+                    if combined
+                    else f"datalad clone exited with code {proc.returncode}"
+                )
         except Exception as e:
             self._clones[clone_id]["status"] = CloneStatus.FAILED
             self._clones[clone_id]["error"] = str(e)
@@ -201,6 +218,70 @@ class DataladAPI:
         :return: Clone status dict or None
         """
         return self._clones.get(clone_id)
+
+    async def list_tree(self, dataset_path, subpath=""):
+        """
+        List directory contents within a cloned dataset.
+
+        :param dataset_path: Root path of the dataset
+        :param subpath: Relative subdirectory to list
+        :return: List of dicts with entry info (name, type, has_content)
+        """
+        target = Path(dataset_path)
+        if subpath:
+            target = target / subpath
+
+        if not target.is_dir():
+            return None
+
+        entries = []
+        for item in sorted(target.iterdir()):
+            if item.name.startswith("."):
+                continue
+            entry = {"name": item.name, "type": "dir" if item.is_dir() else "file"}
+            if item.is_file():
+                # Check if this is an annex pointer (symlink to .git/annex)
+                if item.is_symlink():
+                    link_target = str(os.readlink(item))
+                    entry["annexed"] = ".git/annex" in link_target
+                    entry["has_content"] = item.exists()
+                else:
+                    entry["annexed"] = False
+                    entry["has_content"] = True
+                entry["size"] = item.stat().st_size if entry["has_content"] else 0
+            entries.append(entry)
+        return entries
+
+    async def get_content(self, dataset_path, subpath):
+        """
+        Run `datalad get` to fetch content for a file or directory.
+
+        :param dataset_path: Root path of the dataset
+        :param subpath: Relative path within the dataset to get
+        :return: Dict with status and error info
+        """
+        if not self.datalad_available:
+            raise RuntimeError("DataLad CLI not found")
+
+        target = Path(dataset_path) / subpath
+        proc = await create_subprocess_exec(
+            _find_datalad(), "get", str(target),
+            cwd=dataset_path,
+            stdout=PIPE, stderr=PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=self.CLONE_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return {"status": "failed", "error": "datalad get timed out"}
+
+        if proc.returncode == 0:
+            return {"status": "completed"}
+        else:
+            return {"status": "failed", "error": stderr.decode().strip()}
 
     async def show(self, path):
         """

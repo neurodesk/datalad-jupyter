@@ -1,13 +1,24 @@
 """Tornado request handlers for the DataLad Jupyter extension."""
 
 import json
+import logging
+import os
 
 from tornado import web
 from jupyter_server.base.handlers import JupyterHandler
 
+log = logging.getLogger(__name__)
 
 # Global DataladAPI instance, set by __init__._load_jupyter_server_extension
 DATALAD = None
+
+
+def _safe_dataset_path(datasets_path, name):
+    """Resolve a dataset path and verify it stays within the datasets directory."""
+    resolved = os.path.realpath(os.path.join(datasets_path, name))
+    if not resolved.startswith(os.path.realpath(datasets_path) + os.sep):
+        raise web.HTTPError(403, "Access denied")
+    return resolved
 
 
 class DatasetSearchHandler(JupyterHandler):
@@ -18,7 +29,11 @@ class DatasetSearchHandler(JupyterHandler):
         query = self.get_query_argument("q", default=None)
         page = int(self.get_query_argument("page", default="1"))
         per_page = int(self.get_query_argument("per_page", default="20"))
-        result = await DATALAD.search(query=query, page=page, per_page=per_page)
+        try:
+            result = await DATALAD.search(query=query, page=page, per_page=per_page)
+        except Exception as e:
+            log.error(f"Registry search failed: {e}")
+            raise web.HTTPError(502, f"Registry search failed: {e}")
         self.finish(json.dumps(result))
 
 
@@ -78,32 +93,69 @@ class DatasetShowHandler(JupyterHandler):
 
     @web.authenticated
     async def get(self, name):
-        import os
-        path = os.path.join(DATALAD.datasets_path, name)
+        path = _safe_dataset_path(DATALAD.datasets_path, name)
         info = await DATALAD.show(path)
         if info is None:
             raise web.HTTPError(404, "Dataset not found")
         self.finish(json.dumps(info))
 
 
-class DatasetMetadataHandler(JupyterHandler):
-    """Fetch metadata for a dataset URL from the registry."""
+class DatasetTreeHandler(JupyterHandler):
+    """List directory contents within a cloned dataset."""
 
     @web.authenticated
-    async def get(self):
-        url = self.get_query_argument("url")
-        if not url:
-            raise web.HTTPError(400, "url query parameter required")
-        result = await DATALAD.url_metadata(url)
+    async def get(self, name, subpath=""):
+        path = _safe_dataset_path(DATALAD.datasets_path, name)
+        entries = await DATALAD.list_tree(path, subpath)
+        if entries is None:
+            raise web.HTTPError(404, "Directory not found")
+        self.finish(json.dumps(entries))
+
+
+class DatasetGetHandler(JupyterHandler):
+    """Run datalad get on a file/directory within a cloned dataset."""
+
+    @web.authenticated
+    async def post(self):
+        body = self.get_json_body()
+        name = body.get("name")
+        subpath = body.get("path")
+        if not name or not subpath:
+            raise web.HTTPError(400, "name and path required")
+        dataset_path = _safe_dataset_path(DATALAD.datasets_path, name)
+        # Validate subpath doesn't escape the dataset
+        resolved = os.path.realpath(os.path.join(dataset_path, subpath))
+        if not resolved.startswith(os.path.realpath(dataset_path) + os.sep):
+            raise web.HTTPError(403, "Access denied")
+        try:
+            result = await DATALAD.get_content(dataset_path, subpath)
+        except RuntimeError as e:
+            raise web.HTTPError(500, str(e))
+        self.finish(json.dumps(result))
+
+
+class DatasetMetadataHandler(JupyterHandler):
+    """Fetch detail and metadata for a dataset by registry ID."""
+
+    @web.authenticated
+    async def get(self, dataset_id):
+        try:
+            result = await DATALAD.dataset_detail(dataset_id)
+        except Exception as e:
+            log.error(f"Registry metadata fetch failed: {e}")
+            raise web.HTTPError(502, f"Registry metadata fetch failed: {e}")
         self.finish(json.dumps(result))
 
 
 default_handlers = [
     (r"/dataset/search", DatasetSearchHandler),
-    (r"/dataset/metadata", DatasetMetadataHandler),
+    (r"/dataset/metadata/([^/]+)", DatasetMetadataHandler),
     (r"/dataset/clone/([^/]+)", DatasetCloneStatusHandler),
     (r"/dataset/clone", DatasetCloneHandler),
     (r"/dataset/config", DatasetConfigHandler),
+    (r"/dataset/tree/([^/]+)/(.*)", DatasetTreeHandler),
+    (r"/dataset/tree/([^/]+)", DatasetTreeHandler),
+    (r"/dataset/get", DatasetGetHandler),
     (r"/dataset/show/([^/]+)", DatasetShowHandler),
     (r"/dataset", DatasetListHandler),
 ]

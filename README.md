@@ -45,32 +45,90 @@ c.Datalad.datasets_path = '/path/to/datasets'
 - **Browse** datasets from a DataLad registry with search and pagination
 - **Clone** datasets to a local directory with async progress tracking
 - **View** cloned datasets and their metadata
+- **Browse files** within cloned datasets with directory tree view
+- **Download** annexed files via `datalad get` directly from the UI
 
-## Develop
+## Development Environment Setup
 
-### Requirements
+### Conda environment (recommended)
 
-- pip >= 23
-- [build](https://pypi.org/project/build/)
-- nodejs >= 18.x
+Create and activate a conda environment with all dependencies:
+
+```bash
+conda create -n jpdatalad python=3.12
+conda activate jpdatalad
+
+# Install datalad via conda-forge (recommended — includes git-annex)
+conda install -c conda-forge datalad
+
+# Install jupyter and build dependencies
+pip install jupyterlab jupyter-server build
+
+# Install the extension in editable mode
+pip install -e ".[dev]"
+```
+
+**Important:** `conda install -c conda-forge datalad` is strongly preferred over `pip install datalad` because conda-forge bundles `git-annex`, which datalad requires. Installing datalad via pip requires you to install git-annex separately (e.g. `brew install git-annex` on macOS or `apt install git-annex` on Debian/Ubuntu).
+
+### Verifying datalad is available
+
+After installation, verify that datalad is on the PATH **in the same environment** where JupyterLab runs:
+
+```bash
+conda activate jpdatalad
+which datalad          # should print a path
+datalad --version      # should print version
+```
+
+### Common pitfall: "datalad not found" in JupyterLab
+
+If `datalad clone` works in your terminal but JupyterLab reports "DataLad CLI not found", the most likely causes are:
+
+1. **JupyterLab was started from a different environment.** The server process inherits the PATH from whatever shell launched it. If you ran `conda activate jpdatalad` but started JupyterLab from a different terminal (or a system-level jupyter), it won't see conda packages. Fix: always start JupyterLab from the activated environment.
+
+2. **JupyterLab was started before installing datalad.** The extension previously detected datalad only at import time. This is now fixed (it re-checks PATH on each operation), but restarting the server after installing datalad is still good practice.
+
+3. **datalad installed via pip without git-annex.** `pip install datalad` installs the Python package but not git-annex. Without git-annex, many datalad commands fail. Use `conda install -c conda-forge datalad` which includes git-annex, or install git-annex separately.
 
 ### Build
 
-- wheel and tarball:
-    ```shell
+- Start conda environment:
+    ```bash
+    conda activate jpdatalad
+    ```
+
+- Frontend (JupyterLab extension):
+    ```bash
+    jlpm install
+    jlpm run build           # dev build
+    jlpm run build:prod      # production build
+    jlpm run install:extension  # install in jupyterlab dev mode
+    ```
+
+- Watch mode (auto-rebuild on changes):
+    ```bash
+    jlpm run watch
+    ```
+
+- Start jupyter lab environment to test the extension:
+    ```bash
+    jupyter lab
+    ```
+
+- Python package (wheel + tarball):
+    ```bash
     pyproject-build
     ```
-- labextension
-    ```shell
-    jlpm install
-    jlpm run build
-    # To install extension in jupyterlab in develop mode:
-    jlpm run install:extension
-    ```
+
+### Tests
+
+```bash
+pip install pytest pytest-asyncio
+pytest tests/ -v
+```
 
 ## Migration from jupyter-lmod
 
 This package (v6.0.0+) replaces the previous `jupyterlmod` extension which
 provided Lmod/Tmod environment module management. If you need the Lmod extension,
 pin to `jupyterlmod<6`.
-

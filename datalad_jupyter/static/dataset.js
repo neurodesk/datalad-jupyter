@@ -62,8 +62,30 @@ class Dataset {
         }
         return null;
     }
-    async metadata(datasetUrl) {
-        const response = await fetch(this.url + '/metadata?url=' + encodeURIComponent(datasetUrl), { headers: this._head_auth });
+    async tree(name, subpath = '') {
+        let url = this.url + '/tree/' + encodeURIComponent(name);
+        if (subpath) {
+            url += '/' + subpath.split('/').map(encodeURIComponent).join('/');
+        }
+        const response = await fetch(url, { headers: this._head_auth });
+        if (response.ok) {
+            return response.json();
+        }
+        return null;
+    }
+    async getContent(name, path) {
+        const response = await fetch(this.url + '/get', {
+            method: 'POST',
+            headers: this._head_auth_json,
+            body: JSON.stringify({ name: name, path: path }),
+        });
+        if (response.ok) {
+            return response.json();
+        }
+        return null;
+    }
+    async metadata(datasetId) {
+        const response = await fetch(this.url + '/metadata/' + encodeURIComponent(datasetId), { headers: this._head_auth });
         if (response.ok) {
             return response.json();
         }
