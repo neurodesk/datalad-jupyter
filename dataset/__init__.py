@@ -131,6 +131,16 @@ class DataladAPI:
                         info["url"] = stdout.decode().strip()
                 except Exception:
                     pass
+            # Read BIDS name if available
+            desc_file = entry / "dataset_description.json"
+            if desc_file.is_file():
+                try:
+                    with open(desc_file) as f:
+                        bids = json.load(f)
+                    if bids.get("Name"):
+                        info["bids_name"] = bids["Name"]
+                except (json.JSONDecodeError, OSError):
+                    pass
             return info
 
         return await asyncio.gather(*(get_info(e) for e in entries))
@@ -324,5 +334,35 @@ class DataladAPI:
                     info["ds_id"] = stdout.decode().strip()
             except Exception:
                 pass
+
+        # Read BIDS dataset_description.json if present
+        desc_file = os.path.join(str(dataset_path), "dataset_description.json")
+        if os.path.isfile(desc_file):
+            try:
+                with open(desc_file) as f:
+                    bids_desc = json.load(f)
+                if bids_desc.get("Name"):
+                    info["bids_name"] = bids_desc["Name"]
+                if bids_desc.get("Authors"):
+                    info["authors"] = bids_desc["Authors"]
+                if bids_desc.get("License"):
+                    info["license"] = bids_desc["License"]
+                if bids_desc.get("DatasetDOI"):
+                    info["doi"] = bids_desc["DatasetDOI"]
+                if bids_desc.get("BIDSVersion"):
+                    info["bids_version"] = bids_desc["BIDSVersion"]
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Read README if present
+        for readme_name in ("README.md", "README", "README.txt", "README.rst"):
+            readme_path = os.path.join(str(dataset_path), readme_name)
+            if os.path.isfile(readme_path):
+                try:
+                    with open(readme_path) as f:
+                        info["readme"] = f.read(10000)  # cap at 10KB
+                except OSError:
+                    pass
+                break
 
         return info

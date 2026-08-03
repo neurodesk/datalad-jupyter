@@ -104,8 +104,9 @@
 .jp-Dataset-item {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     color: var(--jp-ui-font-color1);
-    height: var(--jp-private-running-item-height);
+    min-height: var(--jp-private-running-item-height);
     line-height: var(--jp-private-running-item-height);
     padding: 0 8px 0 8px;
 }
@@ -134,6 +135,17 @@
 
 .jp-Dataset-itemLabel:focus {
     background-color: var(--jp-layout-color2);
+}
+
+.jp-Dataset-itemDesc {
+    font-size: 11px;
+    opacity: 0.6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 0 0 100%;
+    padding: 0 4px;
+    line-height: 1.4;
 }
 
 .jp-LmodIcon {

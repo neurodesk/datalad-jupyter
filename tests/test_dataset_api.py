@@ -192,6 +192,83 @@ class TestListTree:
         assert result is None
 
 
+class TestBidsMetadata:
+    @pytest.mark.asyncio
+    async def test_show_bids_metadata(self, api, make_fake_dataset):
+        ds_path = make_fake_dataset("bids_ds")
+        desc = {
+            "Name": "My BIDS Dataset",
+            "Authors": ["Alice", "Bob"],
+            "License": "CC0",
+            "BIDSVersion": "1.8.0",
+            "DatasetDOI": "10.1234/example",
+        }
+        Path(ds_path, "dataset_description.json").write_text(json.dumps(desc))
+        Path(ds_path, "README.md").write_text("# Test Dataset\nDescription here.")
+
+        with patch("dataset.create_subprocess_exec") as mock_exec:
+            proc = AsyncMock()
+            proc.communicate = AsyncMock(side_effect=[
+                (b"https://example.com/ds.git\n", b""),
+                (b"abc-123\n", b""),
+            ])
+            proc.returncode = 0
+            mock_exec.return_value = proc
+            result = await api.show(ds_path)
+
+        assert result["bids_name"] == "My BIDS Dataset"
+        assert result["authors"] == ["Alice", "Bob"]
+        assert result["license"] == "CC0"
+        assert result["bids_version"] == "1.8.0"
+        assert result["doi"] == "10.1234/example"
+        assert "Test Dataset" in result["readme"]
+
+    @pytest.mark.asyncio
+    async def test_show_no_bids(self, api, make_fake_dataset):
+        ds_path = make_fake_dataset("plain_ds")
+        with patch("dataset.create_subprocess_exec") as mock_exec:
+            proc = AsyncMock()
+            proc.communicate = AsyncMock(side_effect=[
+                (b"https://example.com/ds.git\n", b""),
+                (b"abc-123\n", b""),
+            ])
+            proc.returncode = 0
+            mock_exec.return_value = proc
+            result = await api.show(ds_path)
+
+        assert "bids_name" not in result
+        assert "readme" not in result
+
+    @pytest.mark.asyncio
+    async def test_list_cloned_with_bids_name(self, api, make_fake_dataset):
+        ds_path = make_fake_dataset("bids_list_ds")
+        Path(ds_path, "dataset_description.json").write_text(
+            json.dumps({"Name": "Rich Dataset"})
+        )
+        with patch("dataset.create_subprocess_exec") as mock_exec:
+            proc = AsyncMock()
+            proc.communicate = AsyncMock(
+                return_value=(b"https://example.com/ds.git\n", b"")
+            )
+            proc.returncode = 0
+            mock_exec.return_value = proc
+            result = await api.list_cloned()
+        assert result[0]["bids_name"] == "Rich Dataset"
+
+    @pytest.mark.asyncio
+    async def test_list_cloned_without_bids(self, api, make_fake_dataset):
+        make_fake_dataset("no_bids_ds")
+        with patch("dataset.create_subprocess_exec") as mock_exec:
+            proc = AsyncMock()
+            proc.communicate = AsyncMock(
+                return_value=(b"https://example.com/ds.git\n", b"")
+            )
+            proc.returncode = 0
+            mock_exec.return_value = proc
+            result = await api.list_cloned()
+        assert "bids_name" not in result[0]
+
+
 class TestGetContent:
     @pytest.mark.asyncio
     async def test_get_content_no_datalad(self, api, make_fake_dataset):

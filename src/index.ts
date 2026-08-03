@@ -59,9 +59,22 @@ async function show_dataset(name: string) {
     let text = "Path: " + data.path;
     if (data.url) text += "\nURL: " + data.url;
     if (data.ds_id) text += "\nDataset ID: " + data.ds_id;
+    if (data.bids_name) text += "\nBIDS Name: " + data.bids_name;
+    if (data.authors) text += "\nAuthors: " + data.authors.join(", ");
+    if (data.license) text += "\nLicense: " + data.license;
+    if (data.doi) text += "\nDOI: " + data.doi;
+    if (data.bids_version) text += "\nBIDS Version: " + data.bids_version;
+
+    const body = data.readme
+      ? new DatasetTreeDialogWidget(
+          name,
+          text + "\n\n--- README ---\n" + data.readme,
+        )
+      : new DatasetTreeDialogWidget(name, text);
+
     showDialog({
-      title: name,
-      body: new DatasetTreeDialogWidget(name, text),
+      title: data.bids_name || name,
+      body,
       buttons: [Dialog.okButton()],
     });
   }
@@ -146,6 +159,8 @@ class DatasetWidget extends Widget {
   protected isLoadingMore: boolean;
   protected currentQuery: string | null;
   protected _perPage: number;
+  private _enrichQueue: number[];
+  private _enrichRunning: number;
 
   constructor() {
     super();
@@ -203,6 +218,8 @@ class DatasetWidget extends Widget {
     this.isLoadingMore = false;
     this.currentQuery = null;
     this._perPage = 50;
+    this._enrichQueue = [];
+    this._enrichRunning = 0;
 
     this.clonedUList.addEventListener("click", this.onClickCloned.bind(this));
     this.availUList.addEventListener("click", this.onClickAvail.bind(this));
@@ -228,7 +245,7 @@ class DatasetWidget extends Widget {
       const parent_li = target.closest("li");
       const urlSpan = parent_li.querySelector("span");
       if (target.innerText === "Info") {
-        const name = urlSpan.innerText;
+        const name = urlSpan.getAttribute("data-name") || urlSpan.innerText;
         show_dataset(name);
       }
     }
@@ -303,7 +320,16 @@ class DatasetWidget extends Widget {
     const datasets = await datasetAPI.listCloned();
     this.clonedUList.innerText = "";
     const items = datasets.map((ds) => {
-      const item = createDatasetItem(ds.name, "Info");
+      const label = ds.bids_name || ds.name;
+      const item = createDatasetItem(label, "Info");
+      const span = item.querySelector("span");
+      span.setAttribute("data-name", ds.name);
+      if (ds.bids_name && ds.bids_name !== ds.name) {
+        const sub = document.createElement("span");
+        sub.setAttribute("class", "jp-Dataset-itemDesc");
+        sub.innerText = ds.name;
+        item.insertBefore(sub, item.querySelector(".jp-Dataset-itemButton"));
+      }
       return item;
     });
     this.clonedUList.append(...items);
@@ -349,7 +375,11 @@ class DatasetWidget extends Widget {
         this.currentPage,
         perPage,
       );
-      const datasets = result.dataset_urls || [];
+      const allDatasets = result.dataset_urls || [];
+      // Skip entries whose URL ends in .git with no extracted name
+      const datasets = allDatasets.filter(
+        (ds) => ds.extracted_metadata?.Name || !(ds.url || "").endsWith(".git"),
+      );
       const items = datasets.map((ds) => {
         const url = ds.url || "";
         const name = ds.extracted_metadata?.Name || datasetNameFromUrl(url);
@@ -358,9 +388,28 @@ class DatasetWidget extends Widget {
         span.setAttribute("data-url", url);
         span.setAttribute("title", url);
         if (ds.id) span.setAttribute("data-id", String(ds.id));
+        const desc = ds.extracted_metadata?.Description;
+        if (desc) {
+          const descEl = document.createElement("span");
+          descEl.setAttribute("class", "jp-Dataset-itemDesc");
+          descEl.innerText =
+            desc.length > 80 ? desc.slice(0, 80) + "..." : desc;
+          item.insertBefore(
+            descEl,
+            item.querySelector(".jp-Dataset-itemButton"),
+          );
+        }
         return item;
       });
       this.availUList.append(...items);
+
+      // Enrich items that lack a proper name from the registry
+      const toEnrich = datasets.filter(
+        (ds) => !ds.extracted_metadata?.Name && ds.id,
+      );
+      for (const ds of toEnrich) {
+        this.enrichItemName(ds.id);
+      }
 
       this.totalCount =
         result.collection_stats?.summary?.ds_count || datasets.length;
@@ -371,6 +420,48 @@ class DatasetWidget extends Widget {
       this.availHeader.innerText = "Available Datasets (error loading)";
     }
     this.isLoadingMore = false;
+  }
+
+  private enrichItemName(datasetId: number) {
+    this._enrichQueue.push(datasetId);
+    this._processEnrichQueue();
+  }
+
+  private async _processEnrichQueue() {
+    const MAX_CONCURRENT = 3;
+    while (this._enrichRunning < MAX_CONCURRENT && this._enrichQueue.length > 0) {
+      const id = this._enrichQueue.shift()!;
+      this._enrichRunning++;
+      this._fetchAndEnrich(id).finally(() => {
+        this._enrichRunning--;
+        this._processEnrichQueue();
+      });
+    }
+  }
+
+  private async _fetchAndEnrich(datasetId: number) {
+    try {
+      const result = await datasetAPI.metadata(String(datasetId));
+      if (!result?.metadata?.length) return;
+      let name: string | null = null;
+      for (const entry of result.metadata) {
+        const meta = entry.extracted_metadata || {};
+        if (meta.Name) { name = meta.Name; break; }
+        if (meta["@graph"]) {
+          const dsEntry = meta["@graph"].find(
+            (n: any) => n["@type"] === "Dataset" && n.name,
+          );
+          if (dsEntry?.name) { name = dsEntry.name; break; }
+        }
+      }
+      if (!name) return;
+      const span = this.availUList.querySelector(
+        `span[data-id="${datasetId}"]`,
+      );
+      if (span) span.textContent = name;
+    } catch {
+      // Silently ignore enrichment failures
+    }
   }
 }
 
