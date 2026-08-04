@@ -5,6 +5,8 @@ to browse and clone datasets from a [DataLad](https://www.datalad.org/) registry
 (such as [registry.datalad.org](https://registry.datalad.org/)) directly from
 JupyterLab or Jupyter Notebook.
 
+<img src="src/assets/datalad-jupyter.png" alt="Description" width="300" height="200">
+
 ## Requirements
 
 - [jupyter notebook](https://github.com/jupyter/notebook) >= 6.0
