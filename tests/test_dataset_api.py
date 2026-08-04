@@ -276,3 +276,44 @@ class TestGetContent:
         with patch("dataset._find_datalad", return_value=None):
             with pytest.raises(RuntimeError, match="DataLad CLI not found"):
                 await api.get_content(ds_path, "file.txt")
+
+    @pytest.mark.asyncio
+    async def test_get_content_file_success(self, api, make_fake_dataset):
+        ds_path = make_fake_dataset("get_file_ds")
+        with patch("dataset._find_datalad", return_value="/usr/bin/datalad"):
+            with patch("dataset.create_subprocess_exec") as mock_exec:
+                proc = AsyncMock()
+                proc.communicate = AsyncMock(return_value=(b"get(ok)\n", b""))
+                proc.returncode = 0
+                mock_exec.return_value = proc
+                result = await api.get_content(ds_path, "file.txt")
+        assert result["status"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_get_content_directory_success(self, api, make_fake_dataset):
+        ds_path = make_fake_dataset("get_dir_ds")
+        Path(ds_path, "sub-01").mkdir()
+        with patch("dataset._find_datalad", return_value="/usr/bin/datalad"):
+            with patch("dataset.create_subprocess_exec") as mock_exec:
+                proc = AsyncMock()
+                proc.communicate = AsyncMock(return_value=(b"get(ok)\n", b""))
+                proc.returncode = 0
+                mock_exec.return_value = proc
+                result = await api.get_content(ds_path, "sub-01")
+        assert result["status"] == "completed"
+        # Verify datalad get was called with the directory path
+        call_args = mock_exec.call_args[0]
+        assert "sub-01" in call_args[-1]
+
+    @pytest.mark.asyncio
+    async def test_get_content_failure(self, api, make_fake_dataset):
+        ds_path = make_fake_dataset("get_fail_ds")
+        with patch("dataset._find_datalad", return_value="/usr/bin/datalad"):
+            with patch("dataset.create_subprocess_exec") as mock_exec:
+                proc = AsyncMock()
+                proc.communicate = AsyncMock(return_value=(b"", b"error: not available\n"))
+                proc.returncode = 1
+                mock_exec.return_value = proc
+                result = await api.get_content(ds_path, "missing.dat")
+        assert result["status"] == "failed"
+        assert "not available" in result["error"]

@@ -378,7 +378,8 @@ class DatasetWidget extends Widget {
       const allDatasets = result.dataset_urls || [];
       // Skip entries whose URL ends in .git with no extracted name
       const datasets = allDatasets.filter(
-        (ds) => ds.extracted_metadata?.Name || !(ds.url || "").endsWith(".git"),
+        (ds) =>
+          ds.extracted_metadata?.Name || !(ds.url || "").endsWith("/.git"),
       );
       const items = datasets.map((ds) => {
         const url = ds.url || "";
@@ -429,7 +430,10 @@ class DatasetWidget extends Widget {
 
   private async _processEnrichQueue() {
     const MAX_CONCURRENT = 3;
-    while (this._enrichRunning < MAX_CONCURRENT && this._enrichQueue.length > 0) {
+    while (
+      this._enrichRunning < MAX_CONCURRENT &&
+      this._enrichQueue.length > 0
+    ) {
       const id = this._enrichQueue.shift()!;
       this._enrichRunning++;
       this._fetchAndEnrich(id).finally(() => {
@@ -446,12 +450,18 @@ class DatasetWidget extends Widget {
       let name: string | null = null;
       for (const entry of result.metadata) {
         const meta = entry.extracted_metadata || {};
-        if (meta.Name) { name = meta.Name; break; }
+        if (meta.Name) {
+          name = meta.Name;
+          break;
+        }
         if (meta["@graph"]) {
           const dsEntry = meta["@graph"].find(
             (n: any) => n["@type"] === "Dataset" && n.name,
           );
-          if (dsEntry?.name) { name = dsEntry.name; break; }
+          if (dsEntry?.name) {
+            name = dsEntry.name;
+            break;
+          }
         }
       }
       if (!name) return;
@@ -494,7 +504,10 @@ class DatasetTreeDialogWidget extends Widget {
     const body = document.createElement("div");
 
     const pre = document.createElement("pre");
-    pre.setAttribute("style", "margin:10px; white-space:pre-wrap;");
+    pre.setAttribute(
+      "style",
+      "margin:10px; white-space:pre-wrap; max-height:150px; overflow-y:auto;",
+    );
     pre.innerText = infoText;
     body.appendChild(pre);
 
@@ -539,12 +552,12 @@ class DatasetTreeDialogWidget extends Widget {
         let expanded = false;
         const childContainer = document.createElement("div");
         childContainer.style.display = "none";
+        const childPath = subpath ? subpath + "/" + entry.name : entry.name;
         toggle.addEventListener("click", async () => {
           if (!expanded) {
             expanded = true;
             toggle.innerText = "\u25BC " + entry.name + "/";
             childContainer.style.display = "block";
-            const childPath = subpath ? subpath + "/" + entry.name : entry.name;
             await this._loadTree(childContainer, childPath);
           } else {
             expanded = !childContainer.style.display.includes("none");
@@ -553,7 +566,36 @@ class DatasetTreeDialogWidget extends Widget {
               (expanded ? "\u25B6 " : "\u25BC ") + entry.name + "/";
           }
         });
+        const getBtn = document.createElement("button");
+        getBtn.setAttribute(
+          "style",
+          "margin-left:8px; font-size:11px; padding:1px 6px; cursor:pointer; border:1px solid #ccc; border-radius:3px; background:#f5f5f5;",
+        );
+        getBtn.innerText = "Get";
+        getBtn.title = "Download directory contents (datalad get)";
+        getBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          getBtn.innerText = "\u23F3";
+          getBtn.disabled = true;
+          const result = await datasetAPI.getContent(
+            this.datasetName,
+            childPath,
+          );
+          if (result && result.status === "completed") {
+            getBtn.innerText = "\u2714";
+            getBtn.style.color = "#2e7d32";
+            if (expanded) {
+              await this._loadTree(childContainer, childPath);
+            }
+          } else {
+            getBtn.innerText = "\u274C";
+            getBtn.style.color = "#c62828";
+            getBtn.title = result?.error || "datalad get failed";
+          }
+          getBtn.disabled = false;
+        });
         li.appendChild(toggle);
+        li.appendChild(getBtn);
         li.appendChild(childContainer);
       } else {
         const icon = entry.annexed && !entry.has_content ? "\u2B07 " : " ";
