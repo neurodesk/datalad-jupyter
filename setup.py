@@ -2,4 +2,4 @@
 
 from distutils.core import setup
 
-setup(name='datalad-jupyter', version='1.0.0', packages=['datalad_jupyter'])
+setup(name='datalad-jupyter', version='0.1.0', packages=['datalad_jupyter'])

@@ -21,7 +21,7 @@ license = { file = "LICENSE" }
 requires-python = ">=3.8"
 classifiers = [
     "Framework :: Jupyter",
-    "License :: OSI Approved :: BSD License",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -37,7 +37,7 @@ dependencies = [
 
 [tool.hatch.metadata.hooks.nodejs]
 path = "package.json"
-fields = ["description", "authors", "urls"]
+fields = ["description", "authors", "urls", "keywords"]
 
 [tool.hatch.build]
 artifacts = [
@@ -89,7 +89,7 @@ field = [
 ]
 
 [tool.tbump.version]
-current = "6.0.0"
+current = "0.1.0"
 regex = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)((?P<channel>a|b|rc|.dev)(?P<release>\\d+))?"
 
 [tool.tbump.git]

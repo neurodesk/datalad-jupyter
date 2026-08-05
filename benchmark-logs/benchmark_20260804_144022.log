@@ -1,0 +1,27 @@
+Benchmark run: 2026-08-04 14:19:13
+Registry: https://registry.datalad.org
+Iterations: 20
+
+=== Search Endpoint Benchmark: https://registry.datalad.org ===
+    Iterations per query: 20
+
+  Name                                 Mean     Median        p95        Min        Max  Status   Rows
+  -----------------------------------------------------------------------------------------------------
+  simple_word                      5386.1ms   5482.4ms   6391.6ms   4194.7ms   6391.6ms     200     20
+  field_url                        1213.4ms   1228.8ms   1442.9ms    915.3ms   1442.9ms     200     20
+  field_ds_id                      1035.5ms   1036.8ms   1204.3ms    920.8ms   1204.3ms     200      2
+  or_two_words                     6354.8ms   6245.6ms   7043.8ms   5976.8ms   7043.8ms     200     20
+  and_two_words                    6057.2ms   6041.8ms   6293.3ms   5903.7ms   6293.3ms     200     20
+  implicit_and                     5944.4ms   5939.3ms   6198.1ms   5762.2ms   6198.1ms     200     20
+  not_expr                         1167.5ms   1149.5ms   1334.0ms   1056.4ms   1334.0ms     200     20
+  complex_bool                     4215.6ms   4207.7ms   4506.4ms   4030.9ms   4506.4ms     200     20
+  parenthesized                    6296.2ms   6316.5ms   6451.1ms   6138.5ms   6451.1ms     200     20
+  metadata_word                    4080.8ms   4017.7ms   5120.0ms   3876.9ms   5120.0ms     200      0
+  metadata_field                   2294.1ms   2303.6ms   2395.5ms   2162.5ms   2395.5ms     200     20
+  metadata_extractor               1588.4ms   1591.0ms   2152.1ms   1433.8ms   2152.1ms     200      4
+  complex_combined                 2730.1ms   2762.2ms   2787.2ms   2658.0ms   2787.2ms     200      0
+  long_substring                   3968.0ms   3909.5ms   4914.6ms   3784.9ms   4914.6ms     200      0
+  uuid_substring                   4137.0ms   4095.8ms   4710.5ms   3885.3ms   4710.5ms     200      0
+  empty_search                     1182.7ms   1220.3ms   1231.0ms   1123.7ms   1231.0ms     200     20
+
+Done.
